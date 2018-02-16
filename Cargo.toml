@@ -1,0 +1,6 @@
+[package]
+name = "pflc"
+version = "0.1.0"
+authors = ["Jakub Hlusička <limeth@protonmail.com>"]
+
+[dependencies]
