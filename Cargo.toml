@@ -2,5 +2,9 @@
 name = "pflc"
 version = "0.1.0"
 authors = ["Jakub Hlusička <limeth@protonmail.com>"]
+description = "Parallelized Functional Language Compiler"
 
 [dependencies]
+nom = "4.0.0-alpha2"
+clap = "2.30.0"
+# syntax = { git = "https://github.com/rust-lang/rust" }

@@ -1,0 +1,5 @@
+fn main :: f32
+impl main = double 21
+
+fn double :: f32 -> f32
+impl double x -> 2 * x

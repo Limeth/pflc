@@ -1,0 +1,2 @@
+fn main :: Context -> [i32; 256] -> i32
+impl main ctx input = nth (nth 0 (global_invocation_id)) input

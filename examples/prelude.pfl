@@ -1,0 +1,30 @@
+// {{{ Operations
+trait Not {
+    type Output
+}
+
+fn neg :: (Not A) => A -> <A as Not>::Output
+
+// class Mul a b c | a b -> c where
+//   (*) :: a -> b -> c
+trait Mul A B {
+    type Output
+    fn (*) :: A -> B -> Self::Output
+}
+// }}}
+
+// {{{ Option
+data Option T =
+    | Some T
+    | None
+
+fn is_some :: (T) => Option T -> bool
+impl is_some _
+    | Some _ = true
+    | None   = false
+
+fn is_none :: (T) => Option T -> bool
+impl is_none _
+    | Some _ = false
+    | None   = true
+// }}}
