@@ -2,7 +2,8 @@ use nom::simple_errors::Context;
 use nom::Err::Error;
 use nom::ErrorKind;
 use nom::types::CompleteStr;
-use nom::digit;
+use nom::{digit, space};
+use ast::lexer;
 
 macro_rules! check_parser {
     ($parser_fn:ident; $input:expr => $rest:expr, $output:expr) => {
@@ -31,7 +32,12 @@ macro_rules! check_parser_err {
 //     rust_lexer::ident_continue(Some(c))
 // }
 
-named!(alphasep<CompleteStr, char>, peek!(one_of!(" \t\n,;:.<>{}[]()+-%*/=^?\"'")));
+named!(alphasep<CompleteStr, CompleteStr>,
+    alt!(
+        recognize!(one_of!(" \t\r\n,;:.<>{}[]()+-%*/=^?\"'"))
+        | recognize!(tuple!(char!('\n'), char!('\r')))
+    )
+);
 
 named!(parse_comment<CompleteStr, CompleteStr>,
     alt!(
@@ -62,6 +68,40 @@ named!(parse_identifier<CompleteStr, CompleteStr>,
 fn test_parse_identifier() {
     check_parser!(parse_identifier; "helloWorld42 rest" => " rest", CompleteStr("helloWorld42"));
     check_parser_err!(parse_identifier; "0helloWorld42 rest" => "0helloWorld42 rest", ErrorKind::OneOf);
+}
+
+named!(parse_type_primitive<CompleteStr, lexer::Primitive>,
+    flat_map!(
+        alt!(
+            tag!("bool")
+            | tag!("i32")
+            | tag!("f32")
+        ),
+        parse_to!(lexer::Primitive)
+    )
+);
+
+#[test]
+fn test_parse_type_primitive() {
+    check_parser!(parse_type_primitive; "bool rest" => " rest", lexer::Primitive::bool);
+    check_parser!(parse_type_primitive; "i32 rest" => " rest", lexer::Primitive::i32);
+    check_parser!(parse_type_primitive; "f32 rest" => " rest", lexer::Primitive::f32);
+}
+
+named!(parse_type<CompleteStr, lexer::Type>,
+    alt!(
+        do_parse!(
+            x: parse_type_primitive
+            >> (lexer::Type::Primitive(x))
+        )
+    )
+);
+
+#[test]
+fn test_parse_type() {
+    check_parser!(parse_type; "bool rest" => " rest", lexer::Type::Primitive(lexer::Primitive::bool));
+    check_parser!(parse_type; "i32 rest" => " rest", lexer::Type::Primitive(lexer::Primitive::i32));
+    check_parser!(parse_type; "f32 rest" => " rest", lexer::Type::Primitive(lexer::Primitive::f32));
 }
 
 // {{{ Literals
@@ -145,21 +185,28 @@ fn test_parse_boolean() {
 //   )
 // );
 
+// named!(parse_i32<CompleteStr, i32>,
+//   flat_map!(
+//     recognize!(
+//       tuple!(
+//         opt!(alt!(tag!("+") | tag!("-"))),
+//         digit,
+//         opt!(tuple!(
+//           alt!(tag!("e") | tag!("E")),
+//           opt!(alt!(tag!("+") | tag!("-"))),
+//           digit
+//           )
+//         ),
+//         opt!(tag!("i32"))
+//       )
+//     ),
+//     parse_to!(i32)
+//   )
+// );
+
 named!(parse_i32<CompleteStr, i32>,
   flat_map!(
-    recognize!(
-      tuple!(
-        opt!(alt!(tag!("+") | tag!("-"))),
-        digit,
-        opt!(tuple!(
-          alt!(tag!("e") | tag!("E")),
-          opt!(alt!(tag!("+") | tag!("-"))),
-          digit
-          )
-        ),
-        opt!(tag!("i32"))
-      )
-    ),
+    digit,
     parse_to!(i32)
   )
 );
@@ -167,38 +214,111 @@ named!(parse_i32<CompleteStr, i32>,
 #[test]
 fn test_parse_i32() {
     check_parser!(parse_i32; "10 rest" => " rest", 10i32);
-    check_parser!(parse_i32; "10_i32 rest" => " rest", 10i32);
 }
 // }}}
 
 // {{{ f32
-named!(parse_f32<CompleteStr, f32>,
-  flat_map!(
-    recognize!(
-      tuple!(
-        opt!(alt!(tag!("+") | tag!("-"))),
-        alt!(
-          delimited!(digit, tag!("."), opt!(digit))
-          | delimited!(opt!(digit), tag!("."), digit)
-        ),
-        opt!(tuple!(
-          alt!(tag!("e") | tag!("E")),
-          opt!(alt!(tag!("+") | tag!("-"))),
-          digit
-          )
-        ),
-        opt!(tag!("f32"))
-      )
-    ),
-    parse_to!(f32)
-  )
+// named!(parse_f32<CompleteStr, f32>,
+//     do_parse!(
+//       flat_map!(
+//         recognize!(
+//           tuple!(
+//             opt!(alt!(tag!("+") | tag!("-"))),
+//             alt!(
+//               delimited!(digit, tag!("."), opt!(digit))
+//               | delimited!(opt!(digit), tag!("."), digit)
+//             ),
+//             opt!(tuple!(
+//               alt!(tag!("e") | tag!("E")),
+//               opt!(alt!(tag!("+") | tag!("-"))),
+//               digit
+//               )
+//             )
+//           )
+//         ),
+//         parse_to!(f32)
+//       )
+//     )
+// );
+
+// #[test]
+// fn test_parse_f32() {
+//     check_parser!(parse_f32; "10 rest" => " rest", 10f32);
+//     check_parser!(parse_f32; "10_f32 rest" => " rest", 10f32);
+// }
+// }}}
+
+// }}}
+
+named!(parse_variable<CompleteStr, lexer::Variable>,
+    do_parse!(
+        ident: parse_identifier
+        >> opt!(space)
+        >> char!(':')
+        >> opt!(space)
+        >> ty: parse_type
+        >> (lexer::Variable {
+            ident,
+            ty,
+        })
+    )
 );
 
-#[test]
-fn test_parse_f32() {
-    check_parser!(parse_f32; "10 rest" => " rest", 10f32);
-    check_parser!(parse_f32; "10_f32 rest" => " rest", 10f32);
-}
-// }}}
+named!(parse_variables<CompleteStr, Vec<lexer::Variable>>,
+    do_parse!(
+        // TODO
+    )
+);
 
-// }}}
+named!(parse_expr<CompleteStr, lexer::Variable>,
+    do_parse!(
+        // TODO
+    )
+)
+
+named!(parse_fn_decl<CompleteStr, lexer::FnDecl>,
+    do_parse!(
+        tag!("fn")
+        >> many1!(space)
+        >> ident: parse_identifier
+        >> many0!(space)
+        >> char!('(')
+        >> many0!(space)
+        >> args: separated_list!(
+            tuple!(many0!(space), char!(','), many0!(space)),
+            parse_variable // TODO replace with parse_variables
+        )
+        >> many0!(space)
+        >> char!(')')
+        >> tag!("->")
+        >> many0!(space)
+        >> return_ty: parse_type
+        >> many0!(space)
+        >> char!('=')
+        >> many0!(space)
+        >> body: parse_expr
+        >> many0!(space)
+        >> char!(';')
+        >> (lexer::FnDecl {
+            ident,
+            args,
+            return_ty,
+            body,
+        })
+    )
+);
+
+named!(parse_root<CompleteStr, lexer::Root>,
+    many0!(
+        alt!(
+            do_parse!(
+                x: parse_fn_decl
+                >> (lexer::FnDecl(x))
+            )
+        )
+    )
+);
+
+pub fn parse(source: &str) -> lexer::Root {
+    parse_root(CompleteStr(source))
+}
